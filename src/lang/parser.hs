@@ -14,36 +14,62 @@ reflect([](AstType &ast){\
 // expr
 #include <lang/expr.hs>
 
-// alias
-#include <lang/alias.hs>
-
-// table
-#include <lang/table.hs>
-
 // select
 #include <lang/select.hs>
 
 // select
 #include <lang/insert.hs>
 
-"query"_p = 
-	"inst_select"_p
-		>> Pass(),
+// index
+#include <lang/index.hs>
+
+// ddl
+#include <lang/ddl.hs>
 
 "instructions"_p = 
-	"instruction"_p + "instructions"_p
+	"instructions"_p + "inst_select"_p + ";"_t
+		>> Expand()
+	|"instructions"_p + "insert"_t + "into"_t + "id"_t + "values"_t + "("_t + "value_list"_p + ")"_t + ";"_t
+		>> reflect([](AstType &ast) -> ValueType {
+			ast[0].gen();
+			API::insert(std::get<std::string>(ast.term(2)), 
+				std::get<std::vector<Value>>(ast[1].gen()));
+			return ValueType();
+		})
+	|"instructions"_p + "inst_ddl"_p + ";"_t
+		>> Expand()
+	|"instructions"_p + "inst_index"_p + ";"_t
+		>> Expand()
+	|"instructions"_p + "inst_delete"_p + ";"_t
 		>> Expand()
 	|""_t
 		>> NoReflect(),
-"instruction_body"_p = 
-	"query"_p
-		>> Pass()
-	|"inst_insert"_p
-		>> Pass(),
-"instruction"_p = 
-	"instruction_body"_p + ";"_t
-		>> Pass(),
 
 "start"_p = 
 	"instructions"_p
 		>> Expand()
+	|"quit"_t + ";"_t
+		>> reflect([](AstType &ast) -> ValueType {
+			std::cout << "See you next time! >w<" << std::endl;
+			exit(0); return ValueType();
+		})
+	|"quit"_t
+		>> reflect([](AstType &ast) -> ValueType {
+			std::cout << "See you next time! >w<" << std::endl;
+			exit(0); return ValueType();
+		})
+	|"execfile"_t + "string"_t + ";"_t
+		>> reflect([](AstType &ast) -> ValueType {
+			throw std::get<std::string>(ast.term(1));
+			return ValueType();
+		})
+	|"show"_t + "tables"_t + ";"_t
+		>> reflect([](AstType &ast) -> ValueType {
+			API::showTables();
+			return ValueType();
+		})
+	|"show"_t + "indexes"_t + "id"_t + ";"_t
+		>> reflect([](AstType &ast) -> ValueType {
+			API::showIndexs(std::get<std::string>(ast.term(2)));
+			return ValueType();
+		})
